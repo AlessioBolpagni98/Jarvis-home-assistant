@@ -1,0 +1,47 @@
+[project]
+name = "jarvis"
+version = "0.1.0"
+description = "Assistente vocale 100% locale (STT + LLM + TTS) in italiano, con tool agentici"
+requires-python = ">=3.12"
+dependencies = [
+    # Audio I/O
+    "sounddevice>=0.5.1",
+    "numpy>=2.1.0",
+    # STT — whisper.cpp con Core ML (vedi README per il rebuild WHISPER_COREML=1)
+    "pywhispercpp>=1.3.0",
+    # LLM — LiteLLM: interfaccia unica multi-provider (Ollama locale → cloud)
+    "litellm>=1.81",
+    # TTS — Kokoro 82M su onnxruntime
+    "kokoro-onnx>=0.4.9",
+    "soundfile>=0.12.1",
+    # Config & validazione
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    # HTTP per i tool di rete (Open-Meteo, Brave)
+    "httpx>=0.27.0",
+    # Logging strutturato
+    "structlog>=24.4.0",
+    # Segmentazione frasi per lo streaming (M2)
+    "pysbd>=0.3.4",
+    # Wake word + endpointing (M4). openwakeword 0.4.0 include i modelli ONNX
+    # pre-addestrati (incluso hey_jarvis); silero-vad porta con sé torch.
+    "openwakeword>=0.4.0",
+    "silero-vad>=6.2.1",
+]
+
+[project.scripts]
+jarvis = "jarvis.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["uv_build>=0.11.8,<0.12.0"]
+build-backend = "uv_build"

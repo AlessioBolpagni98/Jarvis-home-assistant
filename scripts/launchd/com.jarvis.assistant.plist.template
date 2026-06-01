@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent di Jarvis — wake word always-on (spec §11 M4, topologia 1 §12).
+  NON installare a mano: usa scripts/launchd/install.sh, che sostituisce i
+  segnaposto __PLACEHOLDER__ con i percorsi reali e copia il file in
+  ~/Library/LaunchAgents/.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jarvis.assistant</string>
+
+    <!-- run.sh avvolge "uv run jarvis" in caffeinate e forza la modalità wake_word. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PROJECT_DIR__/scripts/launchd/run.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__PROJECT_DIR__</string>
+
+    <!-- Riavvia se il processo termina; parte al login. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>__PROJECT_DIR__/jarvis.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__PROJECT_DIR__/jarvis.err.log</string>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>

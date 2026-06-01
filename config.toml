@@ -1,0 +1,84 @@
+# Configurazione di Jarvis — assistente vocale locale.
+# I segreti (es. chiavi API) NON vanno qui: usare variabili d'ambiente
+# con prefisso JARVIS_ e separatore "__" per le sezioni annidate.
+# Esempio: JARVIS_TOOLS__BRAVE_API_KEY=xxx
+
+[assistant]
+# System prompt: persona, lingua, stile. Guida tono e comportamento dell'LLM.
+system_prompt = """
+<RUOLO>
+Il tuo nome è Jarvis, sei un assistente vocale che parla in italiano in modo naturale e conciso.
+Jarvis ha a disposizione un set di strumenti/tools a sua disposizione per soddisfare le richiese dell'utente.
+</RUOLO>
+
+<ISTRUZIONI>
+Rispondi in frasi brevi e chiare, adatte a essere lette ad alta voce.
+Evita elenchi puntati, simboli e formattazione: produci testo parlato fluente.
+</ISTRUZIONI>
+
+<TOOLS_POLICY>
+Quando opportuno e necessario puoi utilizzare i tuoi strumenti/tools.
+Usa effettivamente gli strumenti per le azioni concrete: imposta/elenca/cancella timer, meteo,
+ricerca web. Gli strumenti ti permettono di interagire con l'utente in modo più ricco e variegato aggiungiendo funzionalità.
+</TOOLS_POLICY>"""
+
+[audio]
+sample_rate = 16000     # Hz — richiesto da wake word e STT
+channels = 1            # mono
+chunk_ms = 80           # dimensione frame in ms (1280 campioni a 16 kHz)
+input_device = ""       # "" = device di default; oppure nome/indice
+output_device = ""
+
+[stt]
+model = "large-v3-turbo"
+language = "it"         # forza l'italiano (niente auto-detect)
+n_threads = 4
+
+[llm]
+# LiteLLM: il prefisso del modello seleziona il provider. "ollama_chat/" instrada
+# all'endpoint nativo /api/chat di Ollama (necessario perché "think" sia onorato).
+# Cambiare provider = cambiare "model" (+ api_key via env). Es. cloud:
+#   model = "openai/gpt-4o"  e  JARVIS_LLM__API_KEY=sk-...
+model = "ollama_chat/qwen3.5:9b"  # prova leggera; produzione: ollama_chat/qwen3:30b-a3b-instruct-2507
+api_base = "http://localhost:11434"  # "" per i provider cloud
+api_key = "ollama"      # placeholder: Ollama non valida la chiave
+temperature = 0.8
+max_tokens = 4096
+max_tool_iterations = 5 # guard-rail anti-loop nel turno agentico
+request_timeout = 120.0
+drop_params = true      # LiteLLM scarta i parametri non supportati dal provider attivo
+
+[llm.extra_params]
+# Parametri provider-specific (passati top-level a LiteLLM).
+think = false           # disabilita il ragionamento su Ollama (voce: meno latenza); ignorato altrove
+
+[tts]
+model_path = "kokoro-v1.0.onnx"
+voices_path = "voices-v1.0.bin"
+voice = "if_sara"       # voce italiana femminile (alt: im_nicola)
+lang = "it"             # codice lingua espeak per il g2p italiano
+speed = 0.9
+max_sentence_chars = 200 # streaming: flush forzato delle frasi lunghe senza punto
+
+[vad]
+# Silero VAD — endpointing (usato dalla Milestone 4 in poi)
+silence_ms = 500        # silenzio per chiudere la frase
+max_capture_s = 10      # timeout massimo di cattura
+
+[wakeword]
+model = "hey_jarvis"
+threshold = 0.5
+
+[runtime]
+# Modalità di interazione:
+#   "push_to_talk" → premi INVIO per parlare (sviluppo/test, senza wake word)
+#   "wake_word"    → ascolto continuo di "hey jarvis" + endpointing VAD (always-on, M4)
+mode = "wake_word"
+
+[tools]
+weather_default_location = "Milano"  # meteo: città usata se non specificata
+search_results = 5                   # risultati Brave passati all'LLM
+# brave_api_key -> via env JARVIS_TOOLS__BRAVE_API_KEY (il tool web_search lo richiede)
+
+[logging]
+level = "INFO"
