@@ -174,9 +174,21 @@ e i dettagli interni sono `[SCELTA APERTA]` dove indicato.
 - **Responsabilità**: cucire tutto. Mantiene la macchina a stati del turno e implementa il loop
   agentico + lo streaming LLM→TTS.
 - **Stati**: `IDLE → LISTENING (wake word) → CAPTURING (VAD) → TRANSCRIBING → THINKING (loop tool)
-  → SPEAKING → IDLE`.
+  → SPEAKING → IDLE`. Entrando in `THINKING` parte l'earcon di processing (§6.8), che si
+  spegne all'ingresso in `SPEAKING` (primo audio del TTS).
 - `[SCELTA APERTA]` modello di concorrenza (`asyncio` vs thread); gestione barge-in
   (interruzione mentre parla) — può essere rimandata a una fase successiva.
+
+### 6.8 Earcon di processing (latenza percepita)
+- **Responsabilità**: durante lo stato `THINKING` riprodurre **in loop** un suono breve
+  (es. tastiera) per mascherare la latenza dell'LLM con *thinking* attivo; spegnerlo
+  nell'istante in cui inizia la voce del TTS. La latenza reale non cambia, migliora la
+  **percezione** (cfr. NFR1).
+- **Contratto**: `start()` / `stop()` non bloccanti e idempotenti; degrada a no-op se il
+  file non è disponibile (non deve mai rompere il turno).
+- **Config**: abilitazione, percorso del file, volume (`[audio_feedback]`).
+- **Note**: stream di uscita **separato** dalla coda del TTS (§6.5), così i due non si
+  calpestano. Implementazione: `src/jarvis/audio_feedback.py`.
 
 ---
 
@@ -277,6 +289,7 @@ voice-assistant/
     ├── main.py               # entrypoint, avvia l'orchestratore
     ├── orchestrator.py       # macchina a stati + loop agentico + streaming
     ├── audio_io.py           # cattura/riproduzione
+    ├── audio_feedback.py     # earcon di processing (loop durante il THINKING)
     ├── wake_word.py          # openWakeWord + Silero VAD
     ├── stt.py                # Whisper v3 Turbo (Neural Engine)
     ├── llm.py                # backend astratto (Ollama/MLX), stream_chat

@@ -24,6 +24,7 @@ import time
 import numpy as np
 
 from .agent import Agent
+from .audio_feedback import ProcessingSound
 from .audio_io import AudioIO, PlaybackQueue
 from .config import Config, load_config
 from .llm import LLM
@@ -40,6 +41,7 @@ class Assistant:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
         self.audio = AudioIO(cfg.audio)
+        self.processing_sound = ProcessingSound(cfg.audio_feedback, self.audio.output_device)
         self.stt = STT(cfg.stt)
         self.llm = LLM(cfg.llm)
         self.tts = TTS(cfg.tts)
@@ -59,6 +61,10 @@ class Assistant:
         ``t`` il time-to-first-audio, il numero di frasi e i tool usati.
         """
         self.history.append({"role": "user", "content": user_text})
+
+        # Earcon di processing: parte ora (inizio del thinking LLM) e si spegne
+        # appena il TTS produce il primo audio, lasciando il posto alla voce.
+        self.processing_sound.start()
 
         splitter = SentenceSplitter(
             language=self.cfg.stt.language,
@@ -80,6 +86,8 @@ class Assistant:
                     break
                 samples, _ = await self.tts.synthesize(sentence)
                 if first_audio_ms is None:
+                    # Primo audio pronto: spegni la tastiera prima di dar voce.
+                    self.processing_sound.stop()
                     first_audio_ms = round((time.perf_counter() - t0) * 1000, 1)
                 playback.put(samples)
                 n_spoken += 1
@@ -94,6 +102,7 @@ class Assistant:
             for sentence in splitter.flush():
                 await sentences.put(sentence)
         finally:
+            self.processing_sound.stop()  # rete di sicurezza: nessun audio / errore
             await sentences.put(None)  # sentinella: chiude il worker
             await worker
             await asyncio.get_running_loop().run_in_executor(None, playback.stop)

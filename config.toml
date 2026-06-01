@@ -39,7 +39,7 @@ n_threads = 4
 # all'endpoint nativo /api/chat di Ollama (necessario perché "think" sia onorato).
 # Cambiare provider = cambiare "model" (+ api_key via env). Es. cloud:
 #   model = "openai/gpt-4o"  e  JARVIS_LLM__API_KEY=sk-...
-model = "ollama_chat/qwen3.5:9b"  # prova leggera; produzione: ollama_chat/qwen3:30b-a3b-instruct-2507
+model = "ollama_chat/qwen3.5:35b-mlx"  # prova leggera; produzione: ollama_chat/qwen3:30b-a3b-instruct-2507
 api_base = "http://localhost:11434"  # "" per i provider cloud
 api_key = "ollama"      # placeholder: Ollama non valida la chiave
 temperature = 0.8
@@ -50,7 +50,7 @@ drop_params = true      # LiteLLM scarta i parametri non supportati dal provider
 
 [llm.extra_params]
 # Parametri provider-specific (passati top-level a LiteLLM).
-think = false           # disabilita il ragionamento su Ollama (voce: meno latenza); ignorato altrove
+think = true           # disabilita il ragionamento su Ollama (voce: meno latenza); ignorato altrove
 
 [tts]
 model_path = "kokoro-v1.0.onnx"
@@ -59,6 +59,14 @@ voice = "if_sara"       # voce italiana femminile (alt: im_nicola)
 lang = "it"             # codice lingua espeak per il g2p italiano
 speed = 0.9
 max_sentence_chars = 200 # streaming: flush forzato delle frasi lunghe senza punto
+
+[audio_feedback]
+# Earcon di "processing": durante il thinking dell'LLM parte in loop un suono di
+# tastiera che si spegne nell'istante in cui inizia la voce. Maschera la latenza
+# percepita (la latenza reale resta identica).
+enabled = true
+processing_sound = "sounds/dragon-studio-keyboard-typing-sound-effect-335503.mp3"
+volume = 0.8            # guadagno applicato al suono (es. 0.6 per renderlo più discreto)
 
 [vad]
 # Silero VAD — endpointing (usato dalla Milestone 4 in poi)

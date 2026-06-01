@@ -85,6 +85,22 @@ Nuovo tool = una funzione in [`src/jarvis/tools/`](src/jarvis/tools/) decorata c
 - `wake_word` — ascolto continuo di «hey jarvis» (openWakeWord) con chiusura frase
   automatica via Silero VAD. Il modello `hey_jarvis` è già incluso in openWakeWord.
 
+### Earcon di processing (latenza percepita)
+
+Con il *thinking* dell'LLM abilitato (`think = true` in `[llm.extra_params]`) il tool
+calling è più affidabile, ma cresce la latenza tra domanda e risposta. Per non lasciare
+l'utente nel silenzio, durante l'elaborazione parte **in loop** un suono di tastiera che
+si spegne nell'istante in cui inizia la voce del TTS: la latenza reale è identica, la
+**percezione** è di un sistema reattivo. Configurazione in `[audio_feedback]`:
+
+- `enabled` — attiva/disattiva l'earcon (default `true`).
+- `processing_sound` — percorso del file (qualsiasi formato leggibile da `soundfile`).
+- `volume` — guadagno applicato (es. `0.6` per renderlo più discreto rispetto alla voce).
+
+Lo stream del suono è separato dalla coda di riproduzione del TTS (non si calpestano) ed
+è tollerante ai guasti: se il file manca o non si decodifica, il turno prosegue senza
+earcon. Implementazione in [`src/jarvis/audio_feedback.py`](src/jarvis/audio_feedback.py).
+
 #### Always-on come servizio (`launchd`, opzionale)
 
 Per far partire Jarvis al login e tenerlo sempre in ascolto (topologia 1: Mac sveglio,

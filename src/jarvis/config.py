@@ -72,6 +72,14 @@ class TTSConfig(BaseModel):
     max_sentence_chars: int = 200
 
 
+class AudioFeedbackConfig(BaseModel):
+    # Earcon di processing: durante il thinking dell'LLM si riproduce in loop un
+    # suono (tastiera) che si spegne all'inizio della voce — maschera la latenza.
+    enabled: bool = True
+    processing_sound: str = "sounds/dragon-studio-keyboard-typing-sound-effect-335503.mp3"
+    volume: float = 1.0  # fattore di guadagno applicato al suono (0.0–1.0+)
+
+
 class VADConfig(BaseModel):
     silence_ms: int = 500
     max_capture_s: int = 10
@@ -112,6 +120,7 @@ class Config(BaseSettings):
     stt: STTConfig = Field(default_factory=STTConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     tts: TTSConfig = Field(default_factory=TTSConfig)
+    audio_feedback: AudioFeedbackConfig = Field(default_factory=AudioFeedbackConfig)
     vad: VADConfig = Field(default_factory=VADConfig)
     wakeword: WakeWordConfig = Field(default_factory=WakeWordConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)

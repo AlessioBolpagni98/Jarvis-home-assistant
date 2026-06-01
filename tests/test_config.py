@@ -15,8 +15,10 @@ def test_loads_defaults_from_toml() -> None:
     assert "qwen3" in cfg.llm.model  # il tag esatto è tunabile
     assert cfg.stt.language == "it"
     assert cfg.tts.lang == "it"
-    # think=false vive ora in [llm.extra_params] (knob provider-specific)
-    assert cfg.llm.extra_params.get("think") is False
+    # think vive in [llm.extra_params] (knob provider-specific); ora abilitato
+    # per un tool calling più efficace (a costo di maggiore latenza, mascherata
+    # dall'earcon di processing — vedi [audio_feedback]).
+    assert cfg.llm.extra_params.get("think") is True
 
 
 def test_chunk_samples_derived() -> None:
