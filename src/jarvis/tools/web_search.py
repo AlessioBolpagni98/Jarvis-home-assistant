@@ -1,29 +1,33 @@
-"""Tool ``web_search`` — Brave Search API (spec §7.2/§7.3).
+"""Tool ``web_search`` — DuckDuckGo via libreria ``ddgs`` (spec §7.2/§7.3).
 
-Scelta concordata: backend **Brave** (opzione A). La chiave NON sta in config: si
-passa via ``JARVIS_TOOLS__BRAVE_API_KEY``. Se manca, il tool fallisce con un
-messaggio chiaro che l'LLM può riferire all'utente.
+Scelta concordata: backend **open source senza chiave API**. La libreria ``ddgs``
+interroga i motori di ricerca (DuckDuckGo e affini) con ``backend="auto"``: ruota
+tra più motori (duckduckgo, bing, brave, google, ...) e fa fallback automatico se
+uno è bloccato o rate-limited → più robusto per un assistente vocale.
+
+``ddgs`` è **sincrono**: la chiamata bloccante gira in un thread
+(``asyncio.to_thread``) così non blocca l'event loop (earcon di processing, TTS).
 
 L'LLM riceve titolo + snippet dei primi risultati e li sintetizza nella risposta
-(privacy: le query escono verso Brave, vedi NFR2).
+(privacy: le query escono verso i motori scelti da ddgs, vedi NFR2).
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated
 
-import httpx
+from ddgs import DDGS
 from pydantic import Field
 
 from ..logging_setup import get_logger
 
 log = get_logger(__name__)
 
-_BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
-_TIMEOUT = 10.0
+_TIMEOUT = 10
 
 
-def register(registry, api_key: str, n_results: int) -> None:  # noqa: ANN001
+def register(registry, n_results: int, region: str) -> None:  # noqa: ANN001
     """Registra il tool ``web_search`` sul registry."""
 
     @registry.tool(
@@ -33,30 +37,27 @@ def register(registry, api_key: str, n_results: int) -> None:  # noqa: ANN001
             "Usalo quando la risposta richiede conoscenze che potresti non avere o che "
             "cambiano nel tempo."
         ),
+        preamble=[
+            "Faccio una ricerca sul web.",
+            "Cerco sul web, un momento.",
+            "Vado a controllare in rete.",
+        ],
     )
     async def web_search(
         query: Annotated[str, Field(description="La query di ricerca, in linguaggio naturale")],
     ) -> str:
-        if not api_key:
-            raise RuntimeError(
-                "ricerca web non configurata: manca JARVIS_TOOLS__BRAVE_API_KEY"
+        def _search() -> list[dict]:
+            return DDGS(timeout=_TIMEOUT).text(
+                query, region=region, max_results=n_results, backend="auto"
             )
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.get(
-                _BRAVE_URL,
-                params={"q": query, "count": n_results, "search_lang": "it"},
-                headers={"Accept": "application/json", "X-Subscription-Token": api_key},
-            )
-            resp.raise_for_status()
-            results = (resp.json().get("web") or {}).get("results") or []
 
+        results = await asyncio.to_thread(_search)
         if not results:
             return f"Nessun risultato per «{query}»."
 
-        righe = []
-        for r in results[:n_results]:
-            titolo = r.get("title", "").strip()
-            descr = r.get("description", "").strip()
-            righe.append(f"- {titolo}: {descr}")
+        righe = [
+            f"- {r.get('title', '').strip()}: {r.get('body', '').strip()}"
+            for r in results[:n_results]
+        ]
         log.info("web_search_ok", query=query, n=len(righe))
         return f"Risultati per «{query}»:\n" + "\n".join(righe)

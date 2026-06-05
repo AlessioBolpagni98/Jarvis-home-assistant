@@ -92,8 +92,10 @@ class LLM:
             kwargs["api_key"] = self.cfg.api_key
         if tools:
             kwargs["tools"] = tools
-        # Parametri provider-specific top-level (es. think=false per Ollama).
-        kwargs.update(self.cfg.extra_params)
+        # Parametri provider-specific: estratti per prefisso (parte prima del "/").
+        # "ollama_chat/qwen3:..." → "ollama_chat"; "openai/gpt-4o" → "openai".
+        provider = self.cfg.model.split("/")[0] if "/" in self.cfg.model else self.cfg.model
+        kwargs.update(self.cfg.provider_extra_params.get(provider, {}))
         return kwargs
 
     async def stream_chat(

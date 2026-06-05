@@ -91,6 +91,25 @@ async def test_agent_runs_tool_then_answers() -> None:
     assert tool_msg["content"] == "sereno a Roma"
 
 
+async def test_agent_calls_on_tool_start_before_executing() -> None:
+    """``on_tool_start`` è invocato con nome+argomenti prima del risultato del tool."""
+    llm = FakeLLM()
+    reg = _registry()
+    agent = Agent(llm, reg, max_iterations=5)
+
+    started: list[tuple[str, dict]] = []
+
+    async def on_tool_start(name: str, arguments: dict) -> None:
+        # Quando annunciamo il tool, il suo risultato non è ancora rientrato.
+        assert llm.saw_tool_result is False
+        started.append((name, arguments))
+
+    history: list[Message] = [{"role": "user", "content": "Che tempo fa a Roma?"}]
+    await agent.run(history, on_text=lambda _t: _noop(), on_tool_start=on_tool_start)
+
+    assert started == [("meteo", {"localita": "Roma"})]
+
+
 async def test_agent_without_tools_answers_directly() -> None:
     class PlainLLM:
         async def stream_chat(self, messages, tools=None):  # noqa: ANN001

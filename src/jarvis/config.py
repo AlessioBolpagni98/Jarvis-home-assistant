@@ -2,7 +2,7 @@
 
 Carica `config.toml` e lo valida con pydantic-settings. I segreti si passano via
 variabili d'ambiente con prefisso ``JARVIS_`` e separatore ``__`` per le sezioni
-annidate (es. ``JARVIS_TOOLS__BRAVE_API_KEY``). L'env ha la precedenza sul TOML.
+annidate (es. ``JARVIS_LLM__API_KEY`` per i provider cloud). L'env ha la precedenza sul TOML.
 """
 
 from __future__ import annotations
@@ -56,9 +56,10 @@ class LLMConfig(BaseModel):
     max_tool_iterations: int = 5
     request_timeout: float = 120.0
     drop_params: bool = True  # LiteLLM scarta i param non supportati dal provider attivo
-    # Parametri provider-specific passati così come sono a LiteLLM (top-level). Es.
-    # {"think": false} disattiva il ragionamento su Ollama; ignorato altrove (drop_params).
-    extra_params: dict[str, Any] = Field(default_factory=dict)
+    # Parametri provider-specific, keyed per prefisso provider (la parte prima del "/").
+    # Es. {"ollama_chat": {"think": true}} aggiunge think=true solo per modelli ollama_chat/*.
+    # Cambiare model in config.toml applica automaticamente i parametri giusti.
+    provider_extra_params: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 class TTSConfig(BaseModel):
@@ -78,6 +79,11 @@ class AudioFeedbackConfig(BaseModel):
     enabled: bool = True
     processing_sound: str = "sounds/dragon-studio-keyboard-typing-sound-effect-335503.mp3"
     volume: float = 1.0  # fattore di guadagno applicato al suono (0.0–1.0+)
+    # Chime di conferma allo scatto della wake word ("ti ho sentito"). Default: un
+    # suono di sistema macOS (nessun asset richiesto; no-op se assente/non-macOS).
+    wake_chime_enabled: bool = True
+    wake_chime: str = "/System/Library/Sounds/Tink.aiff"
+    wake_chime_volume: float = 0.5
 
 
 class VADConfig(BaseModel):
@@ -92,8 +98,8 @@ class WakeWordConfig(BaseModel):
 
 class ToolsConfig(BaseModel):
     weather_default_location: str = "Milano"  # meteo: località di default (spec §7.2)
-    search_results: int = 5  # numero di risultati Brave passati all'LLM
-    brave_api_key: str = ""  # solo via env JARVIS_TOOLS__BRAVE_API_KEY
+    search_results: int = 5  # numero di risultati web passati all'LLM
+    search_region: str = "it-it"  # regione/lingua DuckDuckGo (ddgs)
 
 
 class RuntimeConfig(BaseModel):
@@ -112,6 +118,8 @@ class Config(BaseSettings):
         env_prefix="JARVIS_",
         env_nested_delimiter="__",
         toml_file=CONFIG_PATH,
+        env_file=".env",
+        env_file_encoding="utf-8",
         extra="ignore",
     )
 

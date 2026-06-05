@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable
 
 from .llm import LLM, Message, TextDelta, ToolCallDelta
 from .logging_setup import get_logger
@@ -24,6 +24,9 @@ from .tools import ToolRegistry
 log = get_logger(__name__)
 
 OnText = Callable[[str], Awaitable[None]]
+# Notifica "sto per eseguire questo tool" (nome + argomenti), emessa prima della
+# call. La presentazione la usa per dare un feedback vocale; il core resta generico.
+OnToolStart = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 
 @dataclass
@@ -40,11 +43,18 @@ class Agent:
         self.tools = tools
         self.max_iterations = max_iterations
 
-    async def run(self, history: list[Message], on_text: OnText) -> TurnResult:
+    async def run(
+        self,
+        history: list[Message],
+        on_text: OnText,
+        on_tool_start: OnToolStart | None = None,
+    ) -> TurnResult:
         """Esegue il loop agentico mutando ``history`` in-place.
 
         ``on_text`` riceve ogni frammento di testo della risposta finale man mano
-        che arriva (per lo streaming verso il TTS). Ritorna testo e tool usati.
+        che arriva (per lo streaming verso il TTS). ``on_tool_start`` (opzionale)
+        è invocato con nome e argomenti di ogni tool **prima** di eseguirlo, così
+        la presentazione può annunciarlo a voce. Ritorna testo e tool usati.
         """
         schemas = self.tools.schemas() or None
         tools_used: list[str] = []
@@ -89,6 +99,8 @@ class Agent:
             # Esegue i tool e re-inietta i risultati come messaggi role="tool".
             for tc in tool_calls:
                 tools_used.append(tc.name)
+                if on_tool_start is not None:
+                    await on_tool_start(tc.name, tc.arguments)
                 result = await self.tools.execute(tc.name, tc.arguments)
                 content = result.content if result.ok else f"Errore: {result.error}"
                 history.append(

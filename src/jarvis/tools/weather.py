@@ -7,6 +7,7 @@ non la specifica, si usa quella di default da config (``[tools].weather_default_
 
 from __future__ import annotations
 
+import random
 from typing import Annotated
 
 import httpx
@@ -49,12 +50,24 @@ _WMO: dict[int, str] = {
 def register(registry, default_location: str) -> None:  # noqa: ANN001
     """Registra il tool ``meteo`` sul registry."""
 
+    def _preamble(args: dict) -> str:
+        """Preambolo contestuale: nomina la località su cui stiamo controllando."""
+        place = (args.get("localita") or "").strip() or default_location
+        return random.choice(
+            [
+                f"Controllo il meteo a {place}.",
+                f"Vediamo che tempo fa a {place}.",
+                f"Un attimo, guardo le previsioni per {place}.",
+            ]
+        )
+
     @registry.tool(
         name="meteo",
         description=(
             "Fornisce le condizioni meteo attuali (temperatura, cielo, vento) di una "
             "località. Se l'utente non indica la città, usa quella predefinita."
         ),
+        preamble=_preamble,
     )
     async def meteo(
         localita: Annotated[

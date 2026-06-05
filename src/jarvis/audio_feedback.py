@@ -116,3 +116,46 @@ class ProcessingSound:
                 stream.close()
             except Exception:  # noqa: BLE001
                 log.warning("processing_sound_stop_failed")
+
+
+class Chime:
+    """Earcon one-shot, non bloccante — conferma "ti ho sentito" alla wake word.
+
+    Quando «hey jarvis» scatta, l'utente non ha alcun riscontro udibile che il
+    sistema l'abbia colto (il dubbio "mi ha sentito?" è la classica frizione degli
+    assistenti vocali). Un suono brevissimo allo scatto lo elimina, come il *ding*
+    di Siri/Alexa. Riprodotto fire-and-forget così da non ritardare la cattura.
+
+    Tollerante ai guasti come ``ProcessingSound``: se il file manca o non si
+    decodifica (es. non su macOS, dove il default è un suono di sistema), ``play``
+    diventa un no-op e l'ascolto prosegue senza chime.
+    """
+
+    def __init__(self, cfg: AudioFeedbackConfig, output_device: str | int | None = None) -> None:
+        self._output_device = output_device
+        self._data: np.ndarray | None = None
+        self._sample_rate = 0
+
+        if not cfg.wake_chime_enabled:
+            return
+        try:
+            data, sample_rate = sf.read(
+                str(Path(cfg.wake_chime)), dtype="float32", always_2d=True
+            )
+        except Exception:  # noqa: BLE001 — il chime non deve mai bloccare l'ascolto
+            log.warning("wake_chime_load_failed", path=cfg.wake_chime)
+            return
+        self._data = np.ascontiguousarray(
+            data * float(cfg.wake_chime_volume), dtype=np.float32
+        )
+        self._sample_rate = int(sample_rate)
+        log.info("wake_chime_ready", path=cfg.wake_chime, sample_rate=self._sample_rate)
+
+    def play(self) -> None:
+        """Riproduce il chime (non bloccante). No-op se non caricato/abilitato."""
+        if self._data is None:
+            return
+        try:
+            sd.play(self._data, samplerate=self._sample_rate, device=self._output_device)
+        except Exception:  # noqa: BLE001
+            log.warning("wake_chime_play_failed")

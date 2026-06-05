@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import queue
 import threading
+from typing import Callable
 
 import numpy as np
 import sounddevice as sd
@@ -89,11 +90,25 @@ class PlaybackQueue:
 
     Il produttore (orchestratore) accoda blocchi audio man mano che il TTS li
     genera; un thread consumer li riproduce in ordine senza gap percepibili.
+
+    Due hook opzionali (invocati **nel thread consumer**) permettono di coordinare
+    un feedback audio di "processing" con la voce, senza mai sovrapporli:
+    ``on_active`` scatta subito prima di riprodurre un blocco (la voce sta per
+    partire → spegni l'earcon); ``on_drained`` scatta quando la coda si è svuotata
+    dopo un blocco (silenzio in arrivo → eventualmente riarma l'earcon).
     """
 
-    def __init__(self, sample_rate: int, output_device: str | int | None = None) -> None:
+    def __init__(
+        self,
+        sample_rate: int,
+        output_device: str | int | None = None,
+        on_active: Callable[[], None] | None = None,
+        on_drained: Callable[[], None] | None = None,
+    ) -> None:
         self.sample_rate = sample_rate
         self._output_device = output_device
+        self._on_active = on_active
+        self._on_drained = on_drained
         self._q: queue.Queue[np.ndarray | None] = queue.Queue()
         self._thread: threading.Thread | None = None
 
@@ -109,8 +124,13 @@ class PlaybackQueue:
             audio = self._q.get()
             if audio is None:
                 break
+            if self._on_active is not None:
+                self._on_active()
             sd.play(audio, samplerate=self.sample_rate, device=self._output_device)
             sd.wait()
+            # Coda vuota dopo questo blocco: probabile attesa (tool / giro LLM).
+            if self._q.empty() and self._on_drained is not None:
+                self._on_drained()
 
     def stop(self) -> None:
         """Segnala la fine e attende lo svuotamento della coda."""

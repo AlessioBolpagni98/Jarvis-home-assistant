@@ -23,5 +23,5 @@ def build_default_registry(cfg: ToolsConfig) -> ToolRegistry:
     # Il TimerManager è catturato dalle closure dei tool: resta vivo col registry.
     timer_mod.register(registry, TimerManager())
     weather_mod.register(registry, cfg.weather_default_location)
-    web_search_mod.register(registry, cfg.brave_api_key, cfg.search_results)
+    web_search_mod.register(registry, cfg.search_results, cfg.search_region)
     return registry

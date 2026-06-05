@@ -5,8 +5,8 @@ risultato rientra nella conversazione e la risposta finale viene sintetizzata e
 riprodotta in streaming. Stampa i tool usati e il time-to-first-audio.
 
 Prova: «Che tempo fa a Roma?», «imposta un timer di 10 secondi per la pasta».
-Richiede Ollama in esecuzione + Kokoro scaricato. Per web_search serve
-JARVIS_TOOLS__BRAVE_API_KEY. Uso: uv run python scripts/smoke_agent.py
+Richiede Ollama in esecuzione + Kokoro scaricato. web_search usa DuckDuckGo
+(ddgs, nessuna chiave API). Uso: uv run python scripts/smoke_agent.py
 """
 
 from __future__ import annotations

@@ -11,14 +11,12 @@ from jarvis.config import Config, load_config
 def test_loads_defaults_from_toml() -> None:
     cfg = load_config()
     # Valori che vivono in config.toml (verifica che il TOML venga letto)
-    assert cfg.llm.model.startswith("ollama_chat/")  # prefisso provider LiteLLM
-    assert "qwen3" in cfg.llm.model  # il tag esatto è tunabile
+    assert "/" in cfg.llm.model  # formato "provider/modello" di LiteLLM
     assert cfg.stt.language == "it"
     assert cfg.tts.lang == "it"
-    # think vive in [llm.extra_params] (knob provider-specific); ora abilitato
-    # per un tool calling più efficace (a costo di maggiore latenza, mascherata
-    # dall'earcon di processing — vedi [audio_feedback]).
-    assert cfg.llm.extra_params.get("think") is True
+    # think vive in [llm.provider_extra_params.ollama_chat]: applicato solo per
+    # modelli ollama_chat/*, ignorato per openai/* e altri provider.
+    assert cfg.llm.provider_extra_params.get("ollama_chat", {}).get("think") is True
 
 
 def test_chunk_samples_derived() -> None:
@@ -29,7 +27,7 @@ def test_chunk_samples_derived() -> None:
 
 def test_env_overrides_toml(monkeypatch) -> None:
     monkeypatch.setenv("JARVIS_LLM__MODEL", "qwen3:4b")
-    monkeypatch.setenv("JARVIS_TOOLS__BRAVE_API_KEY", "secret-123")
+    monkeypatch.setenv("JARVIS_TOOLS__SEARCH_REGION", "us-en")
     cfg = Config()
     assert cfg.llm.model == "qwen3:4b"
-    assert cfg.tools.brave_api_key == "secret-123"
+    assert cfg.tools.search_region == "us-en"

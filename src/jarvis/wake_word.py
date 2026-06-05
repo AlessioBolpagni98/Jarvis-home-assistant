@@ -13,6 +13,7 @@ così non si contende la GPU dell'LLM né il Neural Engine dello STT.
 from __future__ import annotations
 
 import os
+from typing import Callable
 
 import numpy as np
 import sounddevice as sd
@@ -58,11 +59,13 @@ class WakeWordListener:
         self._silero = load_silero_vad(onnx=True)
         log.info("wakeword_ready", model=self._key, threshold=self._threshold)
 
-    def listen(self) -> np.ndarray:
+    def listen(self, on_wake: Callable[[], None] | None = None) -> np.ndarray:
         """Blocca fino alla wake word, poi cattura l'utterance (bloccante).
 
         Pensato per essere eseguito in un executor. Ritorna audio float32 mono a
-        16 kHz; array vuoto se scade il timeout senza parlato.
+        16 kHz; array vuoto se scade il timeout senza parlato. ``on_wake`` (se
+        fornito) viene chiamato nell'istante in cui la wake word scatta — utile per
+        un chime di conferma; eventuali errori sono ignorati per non perdere la cattura.
         """
         from silero_vad import VADIterator
 
@@ -94,6 +97,11 @@ class WakeWordListener:
                     score = float(self._oww.predict(pcm).get(self._key, 0.0))
                     if score >= self._threshold:
                         log.info("wake_detected", score=round(score, 3))
+                        if on_wake is not None:
+                            try:
+                                on_wake()
+                            except Exception:  # noqa: BLE001
+                                log.warning("wake_chime_failed")
                         capturing = True
                         vad.reset_states()
                     continue

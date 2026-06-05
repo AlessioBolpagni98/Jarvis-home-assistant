@@ -20,6 +20,7 @@ Contratto:
 from __future__ import annotations
 
 import inspect
+import random
 import typing
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
@@ -31,6 +32,12 @@ from ..logging_setup import get_logger
 log = get_logger(__name__)
 
 Handler = Callable[..., str | Awaitable[str]]
+# Preambolo vocale opzionale di un tool: una frase pronunciata appena il modello
+# decide la call, prima di eseguirla (maschera la latenza con feedback semantico).
+# Può essere una stringa fissa, una lista di varianti (scelta a caso, per non
+# suonare robotico) o un callable che lo costruisce dagli argomenti della call
+# (preambolo contestuale, es. "Controllo il meteo a Roma").
+Preamble = str | list[str] | Callable[[dict[str, Any]], str]
 
 
 @dataclass
@@ -50,6 +57,7 @@ class Tool:
     description: str
     parameters: type[BaseModel]  # modello Pydantic derivato dalla firma
     handler: Handler
+    preamble: Preamble | None = None  # frase detta prima di eseguire (opzionale)
 
     def schema(self) -> dict[str, Any]:
         """Schema in formato OpenAI/Ollama che l'LLM riceve per decidere."""
@@ -94,9 +102,18 @@ class ToolRegistry:
         self._tools: dict[str, Tool] = {}
 
     def tool(
-        self, *, name: str | None = None, description: str
+        self,
+        *,
+        name: str | None = None,
+        description: str,
+        preamble: Preamble | None = None,
     ) -> Callable[[Handler], Handler]:
-        """Decoratore di registrazione. ``description`` è in italiano (guida l'LLM)."""
+        """Decoratore di registrazione. ``description`` è in italiano (guida l'LLM).
+
+        ``preamble`` (opzionale) è la frase che Jarvis pronuncia appena decide di
+        usare questo tool, prima di eseguirlo: vive accanto al tool, così aggiungere
+        un feedback vocale resta un'operazione locale (FR6).
+        """
 
         def decorator(func: Handler) -> Handler:
             tool_name = name or func.__name__
@@ -105,6 +122,7 @@ class ToolRegistry:
                 description=description,
                 parameters=_params_model(tool_name, func),
                 handler=func,
+                preamble=preamble,
             )
             log.info("tool_registered", tool=tool_name)
             return func
@@ -120,6 +138,27 @@ class ToolRegistry:
     def schemas(self) -> list[dict[str, Any]]:
         """Schemi di tutti i tool, da passare a ``stream_chat``."""
         return [t.schema() for t in self._tools.values()]
+
+    def preamble_for(self, name: str, arguments: dict[str, Any]) -> str | None:
+        """Frase da pronunciare prima di eseguire ``name`` (None se non definita).
+
+        Risolve il ``preamble`` del tool: callable → costruito dagli argomenti
+        (preambolo contestuale); lista → variante a caso; stringa → così com'è.
+        Fail-safe: qualsiasi errore degrada a ``None`` e il turno prosegue muto.
+        """
+        tool = self._tools.get(name)
+        if tool is None or tool.preamble is None:
+            return None
+        try:
+            preamble = tool.preamble
+            if callable(preamble):
+                return preamble(arguments)
+            if isinstance(preamble, list):
+                return random.choice(preamble) if preamble else None
+            return preamble
+        except Exception:  # noqa: BLE001 — il feedback non deve rompere il turno
+            log.warning("preamble_failed", tool=name)
+            return None
 
     async def execute(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         """Risolve il tool, valida gli argomenti ed esegue l'handler.

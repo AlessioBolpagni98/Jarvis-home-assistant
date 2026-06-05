@@ -89,3 +89,44 @@ async def test_async_handler_is_awaited() -> None:
 
     res = await reg.execute("async_eco", {"testo": "ciao"})
     assert res.ok is True and res.content == "CIAO"
+
+
+def test_preamble_for_resolves_string_list_and_callable() -> None:
+    reg = ToolRegistry()
+
+    @reg.tool(name="fisso", description="x", preamble="Un momento.")
+    def fisso() -> str:
+        return "ok"
+
+    @reg.tool(name="varianti", description="x", preamble=["A", "B"])
+    def varianti() -> str:
+        return "ok"
+
+    @reg.tool(
+        name="contestuale",
+        description="x",
+        preamble=lambda args: f"Cerco {args.get('q', '')}.",
+    )
+    def contestuale(q: str = "") -> str:
+        return "ok"
+
+    assert reg.preamble_for("fisso", {}) == "Un momento."
+    assert reg.preamble_for("varianti", {}) in {"A", "B"}
+    assert reg.preamble_for("contestuale", {"q": "il meteo"}) == "Cerco il meteo."
+
+
+def test_preamble_for_absent_or_failing_returns_none() -> None:
+    reg = ToolRegistry()
+
+    @reg.tool(name="muto", description="x")  # nessun preambolo
+    def muto() -> str:
+        return "ok"
+
+    @reg.tool(name="rotto", description="x", preamble=lambda _a: 1 / 0)
+    def rotto() -> str:
+        return "ok"
+
+    assert reg.preamble_for("muto", {}) is None
+    assert reg.preamble_for("inesistente", {}) is None
+    # Un preambolo che esplode degrada a None: il turno prosegue muto, non crasha.
+    assert reg.preamble_for("rotto", {}) is None
